@@ -21,7 +21,7 @@ data Lexeme where
   CurlyL :: Lexeme
   CurlyR :: Lexeme
   Semicolon :: Lexeme
-  deriving Show
+  deriving (Show, Eq)
 
 lexer :: ParsecT String st Identity [Lexeme]
 lexer =
