@@ -4,7 +4,6 @@ import Control.Applicative (liftA2)
 import Control.Monad
 import Data.Functor.Identity
 import Text.Parsec
-import Text.ParserCombinators.Parsec
 
 data Lexeme where
   Let :: Lexeme
@@ -25,20 +24,20 @@ data Lexeme where
 
 lexer :: ParsecT String st Identity [Lexeme]
 lexer =
-  ( pLet
-      <|> pIn
-      <|> pLambda
-      <|> pArrow
-      <|> pLeftParens
-      <|> pRightParens
-      <|> pEquals
-      <|> pLitBool
-      <|> pLitInt
-      <|> pVarName
-      <|> pOperator
-      <|> pCurlyL
-      <|> pCurlyR
-      <|> pSemicolon
+  ( try pLet
+      <|> try pIn
+      <|> try pLambda
+      <|> try pArrow
+      <|> try pLeftParens
+      <|> try pRightParens
+      <|> try pEquals
+      <|> try pLitBool
+      <|> try pLitInt
+      <|> try pVarName
+      <|> try pOperator
+      <|> try pCurlyL
+      <|> try pCurlyR
+      <|> try pSemicolon
   )
     `sepBy` (spaces <|> void newline)
 pCurlyL = CurlyL <$ char '{'
