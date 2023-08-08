@@ -6,7 +6,7 @@ module Parsing.ParseEarley where
 import Control.Applicative as App
 import Control.Monad
 import Control.Monad.Trans.Reader
-import CoreLanguage.CoreTypes
+import Parsing.FrontExpr
 import Data.Map.Strict hiding (foldl)
 import Data.Maybe
 import GHC (HsMatchContext (mc_fixity))
@@ -38,9 +38,9 @@ pOp op =
 operatorMap = insert (LA 1) ["+", "-"] . insert (LA 2) ["*", "/"] $ Data.Map.Strict.empty
 
 expr opsmap = mdo
-    letRule <- rule (CeLet <$> (namedToken Let *> pVarName) <*> (namedToken Equals *> head exps) <*> (namedToken In *> head exps))
-    absRule <- rule (CeAbs <$> (namedToken Lambda *> pVarName) <*> (namedToken Arrow *> head exps))
-    appRule <- rule (CeApp <$> exps !! 11 <*> exps !! 11)
+    letRule <- rule (FeLet <$> (namedToken Let *> pVarName) <*> (namedToken Equals *> head exps) <*> (namedToken In *> head exps))
+    absRule <- rule (FeAbs <$> (namedToken Lambda *> pVarName) <*> (namedToken Arrow *> head exps))
+    appRule <- rule (FeApp <$> exps !! 11 <*> exps !! 11)
     parensRule <- rule $ namedToken ParensL *> head exps <* namedToken ParensR
     exps <-
         forM
@@ -56,9 +56,9 @@ expr opsmap = mdo
                                         <|> absRule
                                 10 -> appRule
                                 11 ->
-                                    CeVar <$> pVarName
-                                        <|> CeInt <$> terminal (\case (LitInt n) -> Just n; _ -> Nothing)
-                                        <|> CeBool <$> terminal (\case (LitBool n) -> Just n; _ -> Nothing)
+                                    FeVar <$> pVarName
+                                        <|> FeLitInt <$> terminal (\case (LitInt n) -> Just n; _ -> Nothing)
+                                        <|> FeLitBool <$> terminal (\case (LitBool n) -> Just n; _ -> Nothing)
                                         <|> parensRule
                                 _ -> App.empty
                             )
@@ -68,17 +68,17 @@ expr opsmap = mdo
                                      in foldl
                                             (<|>)
                                             App.empty
-                                            ( fmap (\op -> liftA3 (flip CeOp) (exps !! (fixity + 1)) (pOp op) (exps !! (fixity + 1))) opsn
+                                            ( fmap (\op -> liftA3 (flip FeOp) (exps !! (fixity + 1)) (pOp op) (exps !! (fixity + 1))) opsn
                                             )
                                             <|> foldl
                                                 (<|>)
                                                 App.empty
-                                                ( fmap (\op -> liftA3 (flip CeOp) (exps !! fixity) (pOp op) (exps !! (fixity + 1))) opsl
+                                                ( fmap (\op -> liftA3 (flip FeOp) (exps !! fixity) (pOp op) (exps !! (fixity + 1))) opsl
                                                 )
                                             <|> foldl
                                                 (<|>)
                                                 App.empty
-                                                ( fmap (\op -> liftA3 (flip CeOp) (exps !! (fixity + 1)) (pOp op) (exps !! fixity)) opsr
+                                                ( fmap (\op -> liftA3 (flip FeOp) (exps !! (fixity + 1)) (pOp op) (exps !! fixity)) opsr
                                                 )
                                             <|> exps !! (fixity + 1)
                     )
