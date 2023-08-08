@@ -1,11 +1,18 @@
+module Inference.Infer (inferExpr, constraintsExpr, preludeEnv) where
+
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
-import Control.Monad.Trans.RWS
+import Control.Monad.Trans.RWS as RWS
 import CoreLanguage.CoreTypes (CoreScheme (..), CoreType (..), CoreExpr (..))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Functor.Classes (eq1)
+import Data.Functor.Identity (Identity (runIdentity))
+import Control.Monad.Trans.State as State
+import Data.Data (typeOf2)
+import Control.Monad.Trans.Reader (runReaderT)
+import Data.List (nub)
 
 type TypeEnv = Map.Map String CoreScheme
 
@@ -20,7 +27,7 @@ data TypeError
     | InfiniteType String CoreType
     | UnboundVariable String
     | Ambigious [Constraint]
-    | UnificationMismatch [CoreType] [CoreType]
+    | UnificationMismatch [CoreType] [CoreType] deriving Show
 
 type InferM a = (RWST TypeEnv [Constraint] InferState (Except TypeError)) a
 
@@ -54,12 +61,16 @@ instance Substitutable TypeEnv where
     apply map = Map.map (apply map)
     ftv = ftv . Map.elems
 
+instance Substitutable Constraint where
+   apply s (t1, t2) = (apply s t1, apply s t2)
+   ftv (t1, t2) = ftv t1 `Set.union` ftv t2
+
 letters = [1 ..] >>= flip replicateM ['a' .. 'z']
 
 fresh :: InferM CoreType
 fresh = do
-    s <- get
-    put s{count = count s + 1}
+    s <- RWS.get
+    RWS.put s{count = count s + 1}
     return . TVar $ letters !! count s
 
 occursCheck var t = var `Set.member` ftv t
@@ -76,6 +87,7 @@ instantiate (Forall as t) = do
     let s = Map.fromList $ zip as as'
     return $ apply s t
 
+generalize :: TypeEnv -> CoreType -> CoreScheme
 generalize env t = Forall diff t
     where diff = Set.toList $ ftv t `Set.difference` ftv env
 lookupEnv x = do
@@ -104,7 +116,105 @@ infer expr = case expr of
     
     CeLet n e1 e2 -> do
         env <- ask
-        t1 <- infer e1
-        let sc = generalize env t1
+        (t0, constraints) <- listen $ infer e1
+        subst <- lift . liftEither $ runSolve constraints
+        let t1 = apply subst t0
+            sc = generalize env t1
         inEnv (n, sc) (infer e2)
-        
+
+liftEither :: Either TypeError Subst -> ExceptT TypeError Identity Subst
+liftEither ei = case ei of
+    Left err -> throwE err
+    Right subs -> return subs
+
+type Unifier = (Subst, [Constraint])
+type Solve a = ExceptT TypeError Identity a
+
+s1 `compose` s2 = Map.map (apply s1) s2 `Map.union` s1
+unifies :: CoreType -> CoreType -> Solve Subst
+unifies t1 t2 | t1 == t2 = return mempty
+unifies t (TVar n) = n `bind` t
+unifies (TVar n) t = n `bind` t
+unifies (TArr a1 b1) (TArr a2 b2) = unifyMany [a1, b1] [a2, b2]
+unifies (TCons n a) (TCons m b) | n == m = unifyMany a b
+unifies t1 t2 = throwE $ UnificationFail t1 t2
+
+unifyMany :: [CoreType] -> [CoreType] -> Solve Subst
+unifyMany [] [] = return mempty
+unifyMany (a:as) (b:bs) = do
+    su1 <- unifies a b
+    su2 <- unifyMany (apply su1 as) (apply su1 bs)
+    return $ su2 `compose` su1
+
+
+bind :: String -> CoreType -> Solve Subst
+bind a t | t == TVar a = return mempty
+        | occursCheck a t = throwE $ InfiniteType a t
+        | otherwise = return (Map.singleton a t)
+
+solver :: Unifier -> Solve Subst
+solver (su, cs) =
+    case cs of
+        [] -> return su
+        ((t1, t2):rs) -> do
+            su1 <- unifies t1 t2
+            solver (su1 `compose` su, apply su1 rs)
+
+runSolve cs = runIdentity $ runExceptT $ solver (mempty, cs)
+
+inferTop :: TypeEnv -> [(String, CoreExpr)] -> Either TypeError TypeEnv
+inferTop env [] = Right env
+inferTop env ((name, ex):xs) = case inferExpr env ex of
+  Left err -> Left err
+  Right ty -> inferTop (extend env (name, ty)) xs
+
+normalize :: CoreScheme -> CoreScheme
+normalize (Forall _ body) = Forall (map snd ord) (normtype body)
+  where
+    ord = zip (nub $ fv body) letters
+
+    fv (TVar a)   = [a]
+    fv (TArr a b) = fv a ++ fv b
+    fv (TConstant _)    = []
+    fv (TCons n a) = foldl1 (++) . map fv $ a
+
+    normtype (TArr a b) = TArr (normtype a) (normtype b)
+    normtype (TCons n a) = TCons n (map normtype a)
+    normtype (TConstant a)   = TConstant a
+    normtype (TVar a)   =
+      case Prelude.lookup a ord of
+        Just x -> TVar x
+        Nothing -> error "type variable not in signature"
+
+initInfer = InferState { count = 0 }
+-- | Run the inference monad
+--runInfer :: TypeEnv -> InferM (CoreType, [Constraint]) -> Either TypeError (CoreType, [Constraint])
+runInfer env (m :: InferM CoreType) = runExcept $ evalRWST m env initInfer
+
+-- | Solve for the toplevel type of an expression in a given environment
+inferExpr :: TypeEnv -> CoreExpr -> Either TypeError CoreScheme
+inferExpr env ex = case runInfer env (infer ex) of
+  Left err -> Left err
+  Right (ty, cs) -> case runSolve cs of
+    Left err -> Left err
+    Right subst -> Right $ closeOver $ apply subst ty
+
+-- | Return the internal constraints used in solving for the type of an expression
+constraintsExpr :: TypeEnv -> CoreExpr -> Either TypeError ([Constraint], Subst, CoreType, CoreScheme)
+constraintsExpr env ex = case runInfer env (infer ex) of
+  Left err -> Left err
+  Right (ty, cs) -> case runSolve cs of
+    Left err -> Left err
+    Right subst -> Right (cs, subst, ty, sc)
+      where
+        sc = closeOver $ apply subst ty
+
+-- | Canonicalize and return the polymorphic toplevel type.
+closeOver :: CoreType -> CoreScheme
+closeOver = normalize . generalize mempty
+
+preludeEnv :: TypeEnv
+preludeEnv = Map.fromList [("+", Forall [] $ TArr (TConstant "Int") (TArr (TConstant "Int") (TConstant "Int"))),
+    ("-", Forall [] $ TArr (TConstant "Int") (TArr (TConstant "Int") (TConstant "Int"))),
+    ("*", Forall [] $ TArr (TConstant "Int") (TArr (TConstant "Int") (TConstant "Int"))),
+    ("/", Forall [] $ TArr (TConstant "Int") (TArr (TConstant "Int") (TConstant "Int")))]

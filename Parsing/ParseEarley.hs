@@ -40,7 +40,7 @@ operatorMap = insert (LA 1) ["+", "-"] . insert (LA 2) ["*", "/"] $ Data.Map.Str
 expr opsmap = mdo
     letRule <- rule (FeLet <$> (namedToken Let *> pVarName) <*> (namedToken Equals *> head exps) <*> (namedToken In *> head exps))
     absRule <- rule (FeAbs <$> (namedToken Lambda *> pVarName) <*> (namedToken Arrow *> head exps))
-    appRule <- rule (FeApp <$> exps !! 11 <*> exps !! 11)
+    appRule <- rule (FeApp <$> exps !! 10 <*> exps !! 11)
     parensRule <- rule $ namedToken ParensL *> head exps <* namedToken ParensR
     exps <-
         forM

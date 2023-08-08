@@ -1,3 +1,4 @@
+module Desugaring.DesugarOps (desugarOps) where
 import Parsing.FrontExpr
 import CoreLanguage.CoreTypes
 
