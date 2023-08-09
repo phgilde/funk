@@ -5,7 +5,6 @@ import Data.Either (fromRight)
 import Desugaring.DesugarOps (desugarOps)
 import Desugaring.Corify (corify)
 import Inference.Infer
-import Data.Foldable
 import Data.Map (assocs)
 
 main :: IO ()

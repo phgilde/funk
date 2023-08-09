@@ -116,10 +116,12 @@ infer expr = case expr of
     
     CeLet n e1 e2 -> do
         env <- ask
-        (t0, constraints) <- listen $ infer e1
+        tv <- fresh
+        (t0, constraints) <- listen . inEnv (n, Forall [] tv) $ infer e1
         subst <- lift . liftEither $ runSolve constraints
         let t1 = apply subst t0
             sc = generalize env t1
+        uni t1 (apply subst tv)
         inEnv (n, sc) (infer e2)
 
 liftEither :: Either TypeError Subst -> ExceptT TypeError Identity Subst

@@ -1,5 +1,6 @@
 module Parsing.Lex (Lexeme (Let, In, Lambda, Equals, Arrow, ParensL, ParensR, LitBool, LitInt, VarName, Operator), doLex) where
 
+{-# LANGUAGE GADTs #-}
 import Control.Applicative (liftA2)
 import Control.Monad
 import Data.Functor.Identity

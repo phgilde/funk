@@ -85,4 +85,5 @@ expr opsmap = mdo
 
     return $ head exps
 
+
 doParse lexed = fullParses (parser (expr operatorMap)) lexed

@@ -1,6 +1,7 @@
 module Parsing.FrontExpr (FeExpr(..)) where
+{-# LANGUAGE GADTSyntax #-}
 
-
+{-# LANGUAGE GADTs #-}
 data FeExpr where
     FeVar :: String -> FeExpr
     FeLitInt :: Int -> FeExpr
