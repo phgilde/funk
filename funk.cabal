@@ -25,7 +25,13 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+      CoreLanguage.CoreTypes
+      Desugaring.Corify
+      Desugaring.DesugarOps
+      Inference.Infer
+      Parsing.FrontExpr
+      Parsing.Lex
+      Parsing.ParseEarley
   other-modules:
       Paths_funk
   hs-source-dirs:
