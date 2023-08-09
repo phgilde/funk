@@ -7,16 +7,16 @@ import Control.Monad.Trans.RWS as RWS
 import CoreLanguage.CoreTypes (CoreScheme (..), CoreType (..), CoreExpr (..))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Functor.Classes (eq1)
 import Data.Functor.Identity (Identity (runIdentity))
-import Control.Monad.Trans.State as State
-import Data.Data (typeOf2)
-import Control.Monad.Trans.Reader (runReaderT)
 import Data.List (nub)
+import Debug.Trace (traceM)
 
 type TypeEnv = Map.Map String CoreScheme
 
+extend :: TypeEnv -> (String, CoreScheme) -> TypeEnv
 extend env (k, v) = Map.insert k v env
+
+remove :: TypeEnv -> String -> TypeEnv
 remove env k = Map.delete k env
 type Subst = Map.Map String CoreType
 type Constraint = (CoreType, CoreType)
@@ -27,7 +27,7 @@ data TypeError
     | InfiniteType String CoreType
     | UnboundVariable String
     | Ambigious [Constraint]
-    | UnificationMismatch [CoreType] [CoreType] deriving Show
+    | UnificationMismatch [CoreType] [CoreType] deriving (Show, Eq)
 
 type InferM a = (RWST TypeEnv [Constraint] InferState (Except TypeError)) a
 
@@ -118,9 +118,12 @@ infer expr = case expr of
         env <- ask
         tv <- fresh
         (t0, constraints) <- listen . inEnv (n, Forall [] tv) $ infer e1
-        subst <- lift . liftEither $ runSolve constraints
+        traceM $ show (t0, constraints)
+        traceM $ show tv
+        subst <- lift . liftEither $ runSolve ((tv, t0):constraints)
         let t1 = apply subst t0
             sc = generalize env t1
+        traceM $ show (sc, t1, apply subst tv)
         uni t1 (apply subst tv)
         inEnv (n, sc) (infer e2)
 

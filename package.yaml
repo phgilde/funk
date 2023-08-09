@@ -61,5 +61,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - funk
+    - QuickCheck
 
 language: GHC2021

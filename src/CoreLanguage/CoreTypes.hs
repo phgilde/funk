@@ -24,7 +24,7 @@ instance Show CoreType where
     show (TArr a b) = "(" ++ show a ++ " -> " ++ show b ++ ")"
     show (TCons n p) = "(" ++ n ++ " " ++ (unwords . fmap show $ p) ++ ")"
 
-data CoreScheme = Forall [Name] CoreType
+data CoreScheme = Forall [Name] CoreType deriving Eq
 instance Show CoreScheme where
     show (Forall a t) = "forall " ++ intercalate ", " a ++ " . " ++ show t
 
