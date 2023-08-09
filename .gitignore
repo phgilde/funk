@@ -1,6 +1,5 @@
 /.vscode
 *.o
 *.hi
-.stack-work/stack.sqlite3
-.stack-work/stack.sqlite3.pantry-write-lock
+.stack-work/*
 stack.yaml.lock
