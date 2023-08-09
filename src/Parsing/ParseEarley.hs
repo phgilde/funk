@@ -9,7 +9,6 @@ import Control.Monad.Trans.Reader
 import Parsing.FrontExpr
 import Data.Map.Strict hiding (foldl)
 import Data.Maybe
-import GHC (HsMatchContext (mc_fixity))
 import Parsing.Lex (Lexeme (..))
 import Text.Earley (namedToken)
 import Text.Earley.Grammar
