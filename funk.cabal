@@ -28,10 +28,12 @@ library
       CoreLanguage.CoreTypes
       Desugaring.Corify
       Desugaring.DesugarOps
+      Evalutation.Eval
       Inference.Infer
       Parsing.FrontExpr
       Parsing.Lex
       Parsing.ParseEarley
+      Parsing.Syn
   other-modules:
       Paths_funk
   hs-source-dirs:

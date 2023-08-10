@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 import Parsing.ParseEarley
 import System.IO (stdout, hFlush)
 import Parsing.Lex
@@ -6,6 +7,10 @@ import Desugaring.DesugarOps (desugarOps)
 import Desugaring.Corify (corify)
 import Inference.Infer
 import Data.Map (assocs)
+import Data.List (intercalate)
+import Evalutation.Eval (reduceSingle, reduce)
+import Control.Monad.Trans.State
+import Control.Monad
 
 main :: IO ()
 main = do
@@ -50,4 +55,6 @@ main = do
     print t
     print cs
     print sch
+    let states = iterate (>>=reduce) (return corified)
+    putStrLn . intercalate "\n\n" . fmap (show . flip runState mempty) $ take 10 states
     main

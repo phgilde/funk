@@ -10,7 +10,7 @@ data CoreExpr where
     CeApp :: CoreExpr -> CoreExpr -> CoreExpr
     CeLet :: Name -> CoreExpr -> CoreExpr -> CoreExpr
     CeVar :: Name -> CoreExpr
-    deriving Show
+    deriving (Show, Eq)
 
 data CoreType where
     TVar :: Name -> CoreType

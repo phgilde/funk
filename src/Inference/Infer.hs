@@ -118,12 +118,9 @@ infer expr = case expr of
         env <- ask
         tv <- fresh
         (t0, constraints) <- listen . inEnv (n, Forall [] tv) $ infer e1
-        traceM $ show (t0, constraints)
-        traceM $ show tv
         subst <- lift . liftEither $ runSolve ((tv, t0):constraints)
         let t1 = apply subst t0
             sc = generalize env t1
-        traceM $ show (sc, t1, apply subst tv)
         uni t1 (apply subst tv)
         inEnv (n, sc) (infer e2)
 
