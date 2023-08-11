@@ -10,17 +10,16 @@ data CoreExpr where
     CeApp :: CoreExpr -> CoreExpr -> CoreExpr
     CeLet :: Name -> CoreExpr -> CoreExpr -> CoreExpr
     CeVar :: Name -> CoreExpr
+    CeCons :: Name -> CoreExpr
     deriving (Show, Eq)
 
 data CoreType where
     TVar :: Name -> CoreType
-    TConstant :: Name -> CoreType
     TArr :: CoreType -> CoreType -> CoreType
     TCons :: Name -> [CoreType] -> CoreType
     deriving (Eq, Ord)
 instance Show CoreType where
     show (TVar n) = n
-    show (TConstant n) = n
     show (TArr a b) = "(" ++ show a ++ " -> " ++ show b ++ ")"
     show (TCons n p) = "(" ++ n ++ " " ++ (unwords . fmap show $ p) ++ ")"
 

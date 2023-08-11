@@ -10,4 +10,5 @@ data FeExpr where
     FeAbs :: String -> FeExpr -> FeExpr
     FeLet :: String -> FeExpr -> FeExpr -> FeExpr
     FeOp :: String -> FeExpr -> FeExpr -> FeExpr
+    FeCons :: String -> FeExpr
     deriving Show

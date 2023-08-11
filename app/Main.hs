@@ -3,20 +3,19 @@
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.RWS
-import Control.Monad.Trans.State ( runState )
+import Control.Monad.Trans.State (runState)
 import CoreLanguage.CoreTypes
 import Data.Either (fromRight)
 import Data.List (intercalate)
-import Data.Map (assocs)
+import Data.Map (assocs, insert)
 import Desugaring.Corify (corify)
 import Desugaring.DesugarOps (desugarOps)
 import Evalutation.Eval (VarEnv, reduce, reduceSingle)
 import Inference.Infer
+import Parsing.FrontExpr
 import Parsing.Lex
 import Parsing.ParseEarley
 import System.IO (hFlush, stdout)
-import Data.Map (insert)
-import Parsing.FrontExpr
 
 main :: IO ()
 main = do
@@ -50,6 +49,12 @@ runLine = do
     lift $ putStrLn "parsed:"
     lift $ print parsed'
     lift $ putStrLn "desugared:"
+    case parsed' of
+        TypeDef _ _ constructors -> do 
+            put (venv, foldr (\(name, ctype) t -> insert name ctype t) tenv constructors)
+            runLine
+        _ -> return ()
+
     let desugared = desugarOps $ case parsed' of
             Expr e -> e
             Def n e -> FeLet n e (FeVar n) -- to enable recursive definitions
@@ -89,3 +94,7 @@ evalExpr expr env =
 
         states' = takeUE . fmap (`runState` env) $ states
      in (intercalate "\n\n" . fmap show $ states')
+
+terminalType :: CoreType -> CoreType
+terminalType (TArr _ b) = terminalType b
+terminalType x = x

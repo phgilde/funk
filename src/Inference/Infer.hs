@@ -9,7 +9,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Functor.Identity (Identity (runIdentity))
 import Data.List (nub)
-import Debug.Trace (traceM)
 
 type TypeEnv = Map.Map String CoreScheme
 
@@ -36,15 +35,13 @@ class Substitutable a where
     ftv :: a -> Set.Set String
 
 instance Substitutable CoreType where
-    apply _ (TConstant a) = TConstant a
-    apply map t@(TVar n) = Map.findWithDefault t n map
-    apply map (TArr a b) = TArr (apply map a) (apply map b)
-    apply map (TCons n a) = TCons n (fmap (apply map) a)
+    apply subs t@(TVar n) = Map.findWithDefault t n subs
+    apply subs (TArr a b) = TArr (apply subs a) (apply subs b)
+    apply subs (TCons n a) = TCons n (fmap (apply subs) a)
 
-    ftv TConstant{} = Set.empty
     ftv (TVar n) = Set.singleton n
     ftv (TArr a b) = ftv a <> ftv b
-    ftv (TCons _ a) = foldr1 (<>) . fmap ftv $ a
+    ftv (TCons _ a) = foldMap ftv a
 
 instance Substitutable CoreScheme where
     apply map (Forall bound t) = Forall bound $ apply map' t
@@ -55,7 +52,7 @@ instance Substitutable CoreScheme where
 
 instance Substitutable a => Substitutable [a] where
     apply = fmap . apply
-    ftv = foldr1 (<>) . fmap ftv
+    ftv = foldMap ftv
 
 instance Substitutable TypeEnv where
     apply map = Map.map (apply map)
@@ -90,6 +87,7 @@ instantiate (Forall as t) = do
 generalize :: TypeEnv -> CoreType -> CoreScheme
 generalize env t = Forall diff t
     where diff = Set.toList $ ftv t `Set.difference` ftv env
+lookupEnv :: String -> InferM CoreType
 lookupEnv x = do
     env <- ask
     case Map.lookup x env of
@@ -97,9 +95,11 @@ lookupEnv x = do
         Just s -> instantiate s
 
 
+infer :: CoreExpr -> InferM CoreType
 infer expr = case expr of
-    CeBool _ -> return $ TConstant "Bool"
-    CeInt _ -> return $ TConstant "Int"
+    CeBool _ -> return $ TCons "Bool" []
+    CeInt _ -> return $ TCons "Int" []
+    CeCons x -> lookupEnv x
 
     CeVar x -> lookupEnv x
     CeAbs x e -> do
@@ -177,12 +177,10 @@ normalize (Forall _ body) = Forall (map snd ord) (normtype body)
 
     fv (TVar a)   = [a]
     fv (TArr a b) = fv a ++ fv b
-    fv (TConstant _)    = []
-    fv (TCons n a) = foldl1 (++) . map fv $ a
+    fv (TCons _ a) = foldMap fv a
 
     normtype (TArr a b) = TArr (normtype a) (normtype b)
     normtype (TCons n a) = TCons n (map normtype a)
-    normtype (TConstant a)   = TConstant a
     normtype (TVar a)   =
       case Prelude.lookup a ord of
         Just x -> TVar x
@@ -216,7 +214,7 @@ closeOver :: CoreType -> CoreScheme
 closeOver = normalize . generalize mempty
 
 preludeEnv :: TypeEnv
-preludeEnv = Map.fromList [("+", Forall [] $ TArr (TConstant "Int") (TArr (TConstant "Int") (TConstant "Int"))),
-    ("-", Forall [] $ TArr (TConstant "Int") (TArr (TConstant "Int") (TConstant "Int"))),
-    ("*", Forall [] $ TArr (TConstant "Int") (TArr (TConstant "Int") (TConstant "Int"))),
-    ("/", Forall [] $ TArr (TConstant "Int") (TArr (TConstant "Int") (TConstant "Int")))]
+preludeEnv = Map.fromList [("+", Forall [] $ TArr (TCons "Int" []) (TArr (TCons "Int" []) (TCons "Int" []))),
+    ("-", Forall [] $ TArr (TCons "Int" []) (TArr (TCons "Int" []) (TCons "Int" []))),
+    ("*", Forall [] $ TArr (TCons "Int" []) (TArr (TCons "Int" []) (TCons "Int" []))),
+    ("/", Forall [] $ TArr (TCons "Int" []) (TArr (TCons "Int" []) (TCons "Int" [])))]

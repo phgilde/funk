@@ -10,3 +10,4 @@ corify e = case e of
     FeLitBool b -> CeBool b
     FeLitInt b -> CeInt b
     FeVar n -> CeVar n
+    FeCons n -> CeCons n

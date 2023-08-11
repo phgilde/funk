@@ -5,8 +5,8 @@ import Control.Monad.Trans.State
 import CoreLanguage.CoreTypes (CoreExpr (..))
 import Data.Map (insert)
 import Data.Map as Map
-import Debug.Trace
 import Data.Maybe
+import Debug.Trace
 
 type VarEnv = Map.Map String CoreExpr
 
@@ -20,6 +20,8 @@ builtIn _ = Nothing
 isReduced :: CoreExpr -> Bool
 isReduced (CeInt _) = True
 isReduced (CeBool _) = True
+isReduced (CeApp a b) = isReduced a && isReduced b
+isReduced (CeCons _) = True
 isReduced _ = False
 bind :: String -> CoreExpr -> State VarEnv ()
 bind name val = modify (insert name val)
@@ -34,10 +36,11 @@ spine = second reverse . spine'
     spine' x = (x, [])
 
 fromSpine :: CoreExpr -> [CoreExpr] -> CoreExpr
-fromSpine e es = let se = reverse es in
-    case se of
-        [] -> e
-        s:ses -> CeApp (fromSpine e $ reverse ses) s
+fromSpine e es =
+    let se = reverse es
+     in case se of
+            [] -> e
+            s : ses -> CeApp (fromSpine e $ reverse ses) s
 
 reduce :: CoreExpr -> State VarEnv CoreExpr
 reduce expr = case expr of
@@ -53,16 +56,19 @@ reduce expr = case expr of
                           traceM $ show e-}
         return e
     a -> case spine a of
-            (CeVar name, args) | isJust . builtIn $ name -> case span isReduced args of
-                (_, []) -> return $ (fromJust . builtIn $ name) args
-                (reduced, r:unreduced) -> do
-                    r' <- reduce r
-                    return $ fromSpine (CeVar name) (reduced ++ r':unreduced)
-            _ -> case a of
-                    CeApp a b -> do
-                        red <- reduce a
-                        return $ CeApp red b
-                    a -> return a
+        (CeVar name, args) | isJust . builtIn $ name -> case span isReduced args of
+            (_, []) -> return $ (fromJust . builtIn $ name) args
+            (reduced, r : unreduced) -> do
+                r' <- reduce r
+                return $ fromSpine (CeVar name) (reduced ++ r' : unreduced)
+        _ -> case a of
+            CeApp a b | not $ isReduced a -> do
+                red <- reduce a
+                return $ CeApp red b
+            CeApp a b | not $ isReduced b -> do
+                red <- reduce b
+                return $ CeApp a red
+            a -> return a
 
 reduceSingle :: CoreExpr -> CoreExpr
 reduceSingle ex = evalState (reduce ex) mempty
