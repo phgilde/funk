@@ -1,60 +1,91 @@
 {-# LANGUAGE LambdaCase #-}
-import Parsing.ParseEarley
-import System.IO (stdout, hFlush)
-import Parsing.Lex
-import Data.Either (fromRight)
-import Desugaring.DesugarOps (desugarOps)
-import Desugaring.Corify (corify)
-import Inference.Infer
-import Data.Map (assocs)
-import Data.List (intercalate)
-import Evalutation.Eval (reduceSingle, reduce)
-import Control.Monad.Trans.State
+
 import Control.Monad
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.RWS
+import Control.Monad.Trans.State ( runState )
+import CoreLanguage.CoreTypes
+import Data.Either (fromRight)
+import Data.List (intercalate)
+import Data.Map (assocs)
+import Desugaring.Corify (corify)
+import Desugaring.DesugarOps (desugarOps)
+import Evalutation.Eval (VarEnv, reduce, reduceSingle)
+import Inference.Infer
+import Parsing.Lex
+import Parsing.ParseEarley
+import System.IO (hFlush, stdout)
+import Data.Map (insert)
+import Parsing.FrontExpr
 
 main :: IO ()
 main = do
-    putStr "> "
-    hFlush stdout
-    x <- getLine
+    _ <- evalRWST runLine () (mempty, preludeEnv)
+    return ()
+
+runLine :: RWST () () (VarEnv, TypeEnv) IO ()
+runLine = do
+    (venv, tenv) <- get
+    lift $ putStr "> "
+    lift $ hFlush stdout
+    x <- lift getLine
     let lexed = doLex "<interactive>" x
     case lexed of
         Left e -> do
-            putStrLn "Lexing Error:"
-            print e
-            main
+            lift $ putStrLn "Lexing Error:"
+            lift $ print e
+            runLine
         _ -> return ()
     let lexed' = fromRight [] lexed
-    putStrLn "lexed:"
-    print lexed'
+    lift $ putStrLn "lexed:"
+    lift $ print lexed'
     let parsed = doParse lexed'
     case parsed of
         ([], report) -> do
-            putStrLn "Parsing Error: "
-            print report
-            main
+            lift $ putStrLn "Parsing Error: "
+            lift $ print report
+            runLine
         _ -> return ()
     let parsed' = head . fst $ parsed
-    putStrLn "parsed:"
-    print parsed'
-    putStrLn "desugared:"
-    let desugared = desugarOps parsed'
-    print desugared
+    lift $ putStrLn "parsed:"
+    lift $ print parsed'
+    lift $ putStrLn "desugared:"
+    let desugared = desugarOps $ case parsed' of
+            Expr e -> e
+            Def n e -> FeLet n e (FeVar n) -- to enable recursive definitions
+    lift $ print desugared
     let corified = corify desugared
-    putStrLn "corified:"
-    print corified
-    let inferencer = constraintsExpr preludeEnv corified
-    case inferencer of
-        Left e -> do
-            putStrLn "inference error:"
-            print e
-            main
-        _ -> return ()
-    let Right (cs, su, t, sch) = inferencer
-    print $ assocs su
-    print t
-    print cs
-    print sch
-    let states = iterate (>>=reduce) (return corified)
-    putStrLn . intercalate "\n\n" . fmap (show . flip runState mempty) $ take 10 states
-    main
+    lift $ putStrLn "corified:"
+    lift $ print corified
+    let inferencer = constraintsExpr tenv corified
+    (cs, su, t, sch) <- case inferencer of
+        Left err -> do
+            lift $ putStrLn "inference error:"
+            lift $ print err
+            runLine
+            return undefined
+        Right b -> return b
+    lift $ print $ assocs su
+    lift $ print t
+    lift $ print cs
+    lift $ print sch
+    case parsed' of
+        Def name _ -> do
+            put (insert name corified venv, insert name sch tenv)
+            runLine
+        Expr _ -> do
+            lift $ putStrLn $ evalExpr corified venv
+            runLine
+
+takeUE :: Eq a => [a] -> [a]
+takeUE (a : b : r)
+    | a /= b = a : takeUE (b : r)
+    | a == b = [a]
+takeUE a = a
+
+evalExpr :: CoreExpr -> VarEnv -> String
+evalExpr expr env =
+    let states = iterate (>>= reduce) (return expr)
+
+        states' = takeUE . fmap (`runState` env) $ states
+     in (intercalate "\n\n" . fmap show $ states')

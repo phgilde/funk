@@ -1,25 +1,22 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Parsing.ParseEarley where
+module Parsing.ParseEarley (doParse, Statement (..)) where
 
 import Control.Applicative as App
 import Control.Monad
-import Control.Monad.Trans.Reader
 import Parsing.FrontExpr
 import Data.Map.Strict hiding (foldl)
-import Data.Maybe
 import Parsing.Lex (Lexeme (..))
 import Text.Earley (namedToken)
 import Text.Earley.Grammar
 import Text.Earley.Parser
 
 data Infixity = RA Int | LA Int | NA Int deriving (Show, Ord, Eq)
-type ParseMonad res = forall r. ReaderT (Map Infixity [String]) (Grammar r) (Prod r Lexeme Lexeme res)
-getOps fixity = do
-    map <- ask
-    return $ map ! fixity
+data Statement = Def String FeExpr | Expr FeExpr deriving (Show)
 
+
+pVarName :: Prod r e Lexeme String
 pVarName =
     terminal
         ( \case
@@ -27,6 +24,7 @@ pVarName =
             _ -> Nothing
         )
 
+pOp :: String -> Prod r e Lexeme String
 pOp op =
     terminal
         ( \case
@@ -34,9 +32,11 @@ pOp op =
             _ -> Nothing
         )
 
+operatorMap :: Map Infixity [String]
 operatorMap = insert (LA 1) ["+", "-"] . insert (LA 2) ["*", "/"] $ Data.Map.Strict.empty
 
-expr opsmap = mdo
+line :: Map Infixity [String] -> Grammar r (Prod r Lexeme Lexeme Statement)
+line opsmap = mdo
     letRule <- rule (FeLet <$> (namedToken Let *> pVarName) <*> (namedToken Equals *> head exps) <*> (namedToken In *> head exps))
     absRule <- rule (FeAbs <$> (namedToken Lambda *> pVarName) <*> (namedToken Arrow *> head exps))
     appRule <- rule (FeApp <$> exps !! 10 <*> exps !! 11)
@@ -82,8 +82,10 @@ expr opsmap = mdo
                                             <|> exps !! (fixity + 1)
                     )
             )
+    statement <- rule $ Expr <$> head exps <|> def
+    def <- rule $ Def <$> pVarName <*> (namedToken Equals *> head exps)
+    return statement
 
-    return $ head exps
 
-
-doParse lexed = fullParses (parser (expr operatorMap)) lexed
+doParse :: [Lexeme] -> ([Statement], Report Lexeme [Lexeme])
+doParse = fullParses (parser (line operatorMap))

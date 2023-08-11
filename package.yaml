@@ -1,9 +1,9 @@
 name:                funk
 version:             0.1.0.0
-github:              "githubuser/funk"
-license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
+github:              "phgilde/funk"
+license:             GPL-3
+author:              "Philip Gilde"
+maintainer:          "ph.gilde@gmail.com"
 copyright:           "2023 Author name here"
 
 extra-source-files:

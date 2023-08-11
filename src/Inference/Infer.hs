@@ -1,4 +1,4 @@
-module Inference.Infer (inferExpr, constraintsExpr, preludeEnv) where
+module Inference.Infer (inferExpr, constraintsExpr, preludeEnv, TypeEnv) where
 
 import Control.Monad
 import Control.Monad.Trans.Class
