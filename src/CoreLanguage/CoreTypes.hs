@@ -1,6 +1,5 @@
-module CoreLanguage.CoreTypes (CoreExpr(..), CoreType(..), CoreScheme(..)) where
+module CoreLanguage.CoreTypes (CoreExpr(..), CoreType(..), CoreScheme(..), CorePattern (..)) where
 import Data.List
-{-# LANGUAGE GADTSyntax #-}
 type Name = String
 data CoreExpr where
     CeBool :: Bool -> CoreExpr
@@ -10,6 +9,7 @@ data CoreExpr where
     CeLet :: Name -> CoreExpr -> CoreExpr -> CoreExpr
     CeVar :: Name -> CoreExpr
     CeCons :: Name -> CoreExpr
+    CeCases :: CoreExpr -> [(CorePattern, CoreExpr)] -> CoreExpr
     deriving (Show, Eq)
 
 data CoreType where
@@ -26,9 +26,9 @@ data CoreScheme = Forall [Name] CoreType deriving Eq
 instance Show CoreScheme where
     show (Forall a t) = "forall " ++ intercalate ", " a ++ " . " ++ show t
 
-pretty (CeBool b) = show b
-pretty (CeInt b) = show b
-pretty (CeVar b) = b
-pretty (CeAbs n b) = "\\" ++ n ++ " -> (" ++ pretty b ++ ")"
-pretty (CeApp a b) = "(" ++ pretty a ++ ")(" ++ pretty b ++ ")"
-pretty (CeLet n a b) = "let "++ n ++ " = " ++ pretty a ++ " in " ++ pretty b
+data CorePattern where
+    CPaLitInt :: Int -> CorePattern
+    CPaLitBool :: Bool -> CorePattern
+    CPaVar :: String -> CorePattern
+    CPaCons :: String -> [String] -> CorePattern
+    deriving (Show, Eq)

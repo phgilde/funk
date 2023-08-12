@@ -1,5 +1,8 @@
-module Parsing.FrontExpr (FeExpr(..)) where
 {-# LANGUAGE GADTSyntax #-}
+
+module Parsing.FrontExpr (FeExpr (..), Statement (..), FePattern (..)) where
+
+import CoreLanguage.CoreTypes
 
 data FeExpr where
     FeVar :: String -> FeExpr
@@ -10,4 +13,14 @@ data FeExpr where
     FeLet :: String -> FeExpr -> FeExpr -> FeExpr
     FeOp :: String -> FeExpr -> FeExpr -> FeExpr
     FeCons :: String -> FeExpr
+    FeCases :: FeExpr -> [(FePattern, FeExpr)] -> FeExpr
+    deriving (Show)
+
+data Statement = Def String FeExpr | Expr FeExpr | TypeDef String [String] [DataCons] deriving (Show)
+type DataCons = (String, CoreScheme)
+data FePattern where
+    FPaCons :: String -> [FePattern] -> FePattern
+    FPaVar :: String -> FePattern
+    FPaLitInt :: Int -> FePattern
+    FPaLitBool :: Bool -> FePattern
     deriving Show

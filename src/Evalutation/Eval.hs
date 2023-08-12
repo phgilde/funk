@@ -1,8 +1,9 @@
-module Evalutation.Eval (reduce, reduceSingle, VarEnv) where
+module Evalutation.Eval (reduce, VarEnv, reduceNormal) where
 
 import Control.Arrow (Arrow (second))
+import Control.Monad (forM_)
 import Control.Monad.Trans.State
-import CoreLanguage.CoreTypes (CoreExpr (..))
+import CoreLanguage.CoreTypes (CoreExpr (..), CorePattern (..))
 import Data.Map (insert)
 import Data.Map as Map
 import Data.Maybe
@@ -23,6 +24,14 @@ isReduced (CeBool _) = True
 isReduced (CeApp a b) = isReduced a && isReduced b
 isReduced (CeCons _) = True
 isReduced _ = False
+
+isWeakReduced :: CoreExpr -> Bool
+isWeakReduced (CeInt _) = True
+isWeakReduced (CeBool _) = True
+isWeakReduced (CeApp a _) = isWeakReduced a
+isWeakReduced (CeCons _) = True
+isWeakReduced _ = False
+
 bind :: String -> CoreExpr -> State VarEnv ()
 bind name val = modify (insert name val)
 
@@ -50,11 +59,7 @@ reduce expr = case expr of
     CeLet name e1 e2 -> do
         bind name e1
         return e2
-    CeVar name -> do
-        e <- getName name {-
-                          traceM name
-                          traceM $ show e-}
-        return e
+    CeVar name -> getName name
     a -> case spine a of
         (CeVar name, args) | isJust . builtIn $ name -> case span isReduced args of
             (_, []) -> return $ (fromJust . builtIn $ name) args
@@ -68,7 +73,36 @@ reduce expr = case expr of
             CeApp a b | not $ isReduced b -> do
                 red <- reduce b
                 return $ CeApp a red
+            CeCases e cases | not $ isWeakReduced e -> do
+                red <- reduce e
+                return $ CeCases red cases
+            CeCases e cases | isWeakReduced e -> case spine e of
+                (CeCons consName, args) -> do
+                    let match = head [(pat, res) | (pat, res) <- cases, case pat of CPaCons pname _ -> pname == consName; CPaVar _ -> True; _ -> False]
+                    case match of
+                        (CPaCons _ names, res) -> do
+                            forM_ (zip names args) $ \(name, arg) -> name `bind` arg
+                            return res
+                        (CPaVar name, res) -> do
+                            bind name e
+                            return res
+                (CeBool b, _) -> do
+                    let match = head [(pat, res) | (pat, res) <- cases, case pat of CPaLitBool b' -> b == b'; CPaVar _ -> True; _ -> False]
+                    case match of
+                        (CPaLitBool _, res) -> return res
+                        (CPaVar name, res) -> do
+                            bind name e
+                            return res
+                (CeInt n, _) -> do
+                    let match = head [(pat, res) | (pat, res) <- cases, case pat of CPaLitInt n' -> n == n'; CPaVar _ -> True; _ -> False]
+                    case match of
+                        (CPaLitInt _, res) -> return res
+                        (CPaVar name, res) -> do
+                            bind name e
+                            return res
             a -> return a
 
-reduceSingle :: CoreExpr -> CoreExpr
-reduceSingle ex = evalState (reduce ex) mempty
+reduceNormal :: CoreExpr -> State VarEnv CoreExpr
+reduceNormal expr = do
+    reduced <- reduce expr
+    if reduced == expr then return expr else reduceNormal expr

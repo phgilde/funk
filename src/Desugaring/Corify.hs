@@ -1,4 +1,6 @@
-module Desugaring.Corify where
+module Desugaring.Corify (corify) where
+
+import Control.Arrow
 import CoreLanguage.CoreTypes
 import Parsing.FrontExpr
 
@@ -11,3 +13,11 @@ corify e = case e of
     FeLitInt b -> CeInt b
     FeVar n -> CeVar n
     FeCons n -> CeCons n
+    FeCases e c -> CeCases (corify e) . fmap (corifyPattern *** corify) $ c
+
+corifyPattern :: FePattern -> CorePattern
+corifyPattern p = case p of
+    FPaLitBool b -> CPaLitBool b
+    FPaLitInt n -> CPaLitInt n
+    FPaVar n -> CPaVar n
+    FPaCons n ps -> CPaCons n (fmap (\(FPaVar n) -> n) ps)

@@ -4,11 +4,12 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.RWS as RWS
-import CoreLanguage.CoreTypes (CoreScheme (..), CoreType (..), CoreExpr (..))
+import CoreLanguage.CoreTypes (CoreScheme (..), CoreType (..), CoreExpr (..), CorePattern (..))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Functor.Identity (Identity (runIdentity))
 import Data.List (nub)
+import Data.Bifunctor (Bifunctor(second))
 
 type TypeEnv = Map.Map String CoreScheme
 
@@ -94,6 +95,8 @@ lookupEnv x = do
         Nothing -> lift . throwE $ UnboundVariable x
         Just s -> instantiate s
 
+inEnvMany :: [(String, CoreScheme)] -> InferM a -> InferM a
+inEnvMany as m = foldr inEnv m as
 
 infer :: CoreExpr -> InferM CoreType
 infer expr = case expr of
@@ -123,6 +126,36 @@ infer expr = case expr of
             sc = generalize env t1
         uni t1 (apply subst tv)
         inEnv (n, sc) (infer e2)
+
+    CeCases e cases -> do
+        tv <- fresh
+        
+        t1 <- infer e
+        forM_ cases $ \(pat, res) -> do
+            (t2, bindings) <- patternType pat
+            uni t1 t2
+            t3 <- inEnvMany bindings $ infer res
+            uni tv t3
+        return tv
+
+
+deDataCons :: CoreType -> (CoreType, [CoreType])
+deDataCons t = second reverse $ case t of
+    TArr a b -> second (b :) $ deDataCons a
+    TCons n v -> (TCons n v, [])
+
+patternType :: CorePattern -> InferM (CoreType, [(String, CoreScheme)])
+patternType pat = case pat of
+    CPaVar n -> do
+        tv <- fresh
+        return (tv, [(n, Forall [] tv)])
+    CPaLitBool _ -> return (TCons "Bool" [], [])
+    
+    CPaLitInt _ -> return (TCons "Int" [], [])
+    CPaCons name vars -> do
+        ctype <- lookupEnv name
+        let (cons, args) = deDataCons ctype
+        return (cons, zip vars . fmap (Forall []) $ args)
 
 liftEither :: Either TypeError Subst -> ExceptT TypeError Identity Subst
 liftEither ei = case ei of

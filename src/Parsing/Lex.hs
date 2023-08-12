@@ -26,6 +26,8 @@ data Lexeme where
   LexTypeName :: String -> Lexeme
   LexForall :: Lexeme
   LexPeriod :: Lexeme
+  LexCase :: Lexeme
+  LexOf :: Lexeme
   deriving (Show, Eq)
 
 lexer :: ParsecT String st Identity [Lexeme]
@@ -33,6 +35,8 @@ lexer =
   ( try pLet
       <|> try pIn
       <|> try pLambda
+      <|> try pCase
+      <|> try pOf
       <|> try pArrow
       <|> try pLeftParens
       <|> try pRightParens
@@ -114,6 +118,16 @@ pWhere = LexWhere <$ string "where" <* notFollowedBy varChar
 
 pHasType :: ParsecT String u Identity Lexeme
 pHasType = LexHasType <$ string "::" <* notFollowedBy opChar
+
+pKeyword :: String -> a -> ParsecT String u Identity a
+pKeyword s v = v <$ string s <* notFollowedBy varChar
+pKeyOp :: String -> a -> ParsecT String u Identity a
+pKeyOp s v = v <$ string s <* notFollowedBy opChar
+
+pCase :: ParsecT String u Identity Lexeme
+pCase = pKeyword "case" LexCase
+pOf :: ParsecT String u Identity Lexeme
+pOf = pKeyword "of" LexOf
 
 doLex :: SourceName -> String -> Either ParseError [Lexeme]
 doLex = parse lexer

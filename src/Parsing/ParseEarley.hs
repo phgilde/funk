@@ -1,11 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Parsing.ParseEarley (doParse, Statement (..)) where
+module Parsing.ParseEarley (doParse) where
 
 import Control.Applicative as App
 import Control.Monad
-import CoreLanguage.CoreTypes (CoreType (..), CoreScheme (Forall))
+import CoreLanguage.CoreTypes (CoreScheme (Forall), CoreType (..))
 import Data.Map.Strict hiding (foldl)
 import Parsing.FrontExpr
 import Parsing.Lex (Lexeme (..))
@@ -14,8 +14,6 @@ import Text.Earley.Grammar
 import Text.Earley.Parser
 
 data Infixity = RA Int | LA Int | NA Int deriving (Show, Ord, Eq)
-data Statement = Def String FeExpr | Expr FeExpr | TypeDef String [String] [DataCons] deriving (Show)
-type DataCons = (String, CoreScheme)
 
 pVarName :: Prod r e Lexeme String
 pVarName =
@@ -42,12 +40,31 @@ pOp op =
 operatorMap :: Map Infixity [String]
 operatorMap = insert (LA 1) ["+", "-"] . insert (LA 2) ["*", "/"] $ Data.Map.Strict.empty
 
+pattern :: Grammar r (Prod r Lexeme Lexeme FePattern)
+pattern = mdo
+    pat <- rule $ patCons <|> patVar <|> patLitInt <|> patLitBool
+    patCons <- rule $ FPaCons <$> pTypeName <*> many pat
+    patVar <- rule $ FPaVar <$> pVarName
+    patLitInt <- rule $ FPaLitInt <$> terminal (\case (LexLitInt n) -> Just n; _ -> Nothing)
+    patLitBool <- rule $ FPaLitBool <$> terminal (\case (LexLitBool n) -> Just n; _ -> Nothing)
+    return pat
+
 line :: Map Infixity [String] -> Grammar r (Prod r Lexeme Lexeme Statement)
 line opsmap = mdo
+    pat <- pattern
     letRule <- rule (FeLet <$> (namedToken LexLet *> pVarName) <*> (namedToken LexEquals *> head exps) <*> (namedToken LexIn *> head exps))
     absRule <- rule (FeAbs <$> (namedToken LexLambda *> pVarName) <*> (namedToken LexArrow *> head exps))
     appRule <- rule (FeApp <$> exps !! 10 <*> exps !! 11)
     parensRule <- rule $ namedToken LexParensL *> head exps <* namedToken LexParensR
+    caseRule <- rule $ (,) <$> pat <* namedToken LexArrow <*> head exps <* namedToken LexSemicolon
+    casesRule <-
+        rule $
+            FeCases
+                <$> (namedToken LexCase *> head exps)
+                <* namedToken LexOf
+                <* namedToken LexCurlyL
+                <*> many caseRule
+                <* namedToken LexCurlyR
     exps <-
         forM
             [0 .. 12]
@@ -60,6 +77,7 @@ line opsmap = mdo
                                 0 ->
                                     letRule
                                         <|> absRule
+                                        <|> casesRule
                                 10 -> appRule
                                 11 ->
                                     FeVar <$> pVarName
@@ -94,12 +112,14 @@ line opsmap = mdo
     expr <- rule $ Expr <$> head exps
     typeDef <- rule $ TypeDef <$> (namedToken LexType *> pTypeName) <*> many pVarName <* namedToken LexWhere <* namedToken LexCurlyL <*> many consDef <* namedToken LexCurlyR
     consDef <- rule $ (,) <$> pTypeName <* namedToken LexHasType <*> scheme <* namedToken LexSemicolon
-    typeRule <- rule $ TArr <$> typeRule <* namedToken LexArrow <*> typeRule
-                        <|> TCons <$> pTypeName <*> many typeRule
-                        <|> TVar <$> pVarName
-                        <|> namedToken LexParensL *> typeRule <* namedToken LexParensR
-    --pTypeName muss auch eine expr sein dürfen
-    scheme <- rule $ Forall <$> (namedToken LexForall  *> many pVarName) <* namedToken LexPeriod <*> typeRule
+    typeRule <-
+        rule $
+            TArr <$> typeRule <* namedToken LexArrow <*> typeRule
+                <|> TCons <$> pTypeName <*> many typeRule
+                <|> TVar <$> pVarName
+                <|> namedToken LexParensL *> typeRule <* namedToken LexParensR
+    -- pTypeName muss auch eine expr sein dürfen
+    scheme <- rule $ Forall <$> (namedToken LexForall *> many pVarName) <* namedToken LexPeriod <*> typeRule
     def <- rule $ Def <$> pVarName <*> (namedToken LexEquals *> head exps)
     return statement
 
