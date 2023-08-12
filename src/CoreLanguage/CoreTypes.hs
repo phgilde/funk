@@ -1,7 +1,6 @@
 module CoreLanguage.CoreTypes (CoreExpr(..), CoreType(..), CoreScheme(..)) where
 import Data.List
 {-# LANGUAGE GADTSyntax #-}
-{-# LANGUAGE GADTs #-}
 type Name = String
 data CoreExpr where
     CeBool :: Bool -> CoreExpr

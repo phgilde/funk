@@ -24,6 +24,7 @@ pVarName =
             (LexVarName name) -> Just name
             _ -> Nothing
         )
+pTypeName :: Prod r e Lexeme String
 pTypeName =
     terminal
         ( \case

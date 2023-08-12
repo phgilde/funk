@@ -1,5 +1,3 @@
-{-# LANGUAGE GADTs #-}
-
 module Parsing.Lex (Lexeme (..), doLex) where
 
 import Control.Applicative (liftA2)
