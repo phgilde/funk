@@ -10,7 +10,7 @@ import Data.List (intercalate)
 import Data.Map (assocs, insert)
 import Desugaring.Corify (corify)
 import Desugaring.DesugarOps (desugarOps)
-import Evalutation.Eval (VarEnv, reduce, reduceSingle)
+import Evalutation.Eval (VarEnv, reduce)
 import Inference.Infer
 import Parsing.FrontExpr
 import Parsing.Lex
