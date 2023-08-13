@@ -10,7 +10,16 @@ data CoreExpr where
     CeVar :: Name -> CoreExpr
     CeCons :: Name -> CoreExpr
     CeCases :: CoreExpr -> [(CorePattern, CoreExpr)] -> CoreExpr
-    deriving (Show, Eq)
+    deriving (Eq)
+instance Show CoreExpr where
+    show (CeBool b) = show b
+    show (CeInt b) = show b
+    show (CeAbs n e1) = "\\" ++ n ++ " -> " ++ show e1
+    show (CeApp e1 e2) = "("++ show e1 ++ ") (" ++ show e2 ++ ")"
+    show (CeLet n e1 e2) = "let " ++ n ++" = " ++ show e1 ++ " in " ++ show e2
+    show (CeVar n) = n
+    show (CeCons n) = n
+    show (CeCases e cases) = "case " ++ show e ++ " of {" ++ (intercalate ";" . fmap show $ cases) ++ ";}"
 
 data CoreType where
     TVar :: Name -> CoreType

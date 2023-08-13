@@ -51,11 +51,21 @@ fromSpine e es =
             [] -> e
             s : ses -> CeApp (fromSpine e $ reverse ses) s
 
+replace :: String -> CoreExpr -> CoreExpr -> CoreExpr
+replace name val expr = case expr of
+    CeVar n | n == name -> val
+    CeVar n -> CeVar n
+    CeAbs n e -> CeAbs n (replace name val e)
+    CeApp e1 e2 -> CeApp (replace name val e1) (replace name val e2)
+    CeCases e1 cases -> CeCases (replace name val e1) (fmap (second $ replace name val) cases)
+    CeLet n e1 e2 -> CeLet n (replace name val e1) (replace name val e2)
+    CeInt a -> CeInt a
+    CeBool a -> CeBool a
+    CeCons a -> CeCons a
+
 reduce :: CoreExpr -> State VarEnv CoreExpr
 reduce expr = case expr of
-    CeApp (CeAbs name e1) e2 -> do
-        bind name e2
-        return e1
+    CeApp (CeAbs name e1) e2 -> return $ replace name e2 e1
     CeLet name e1 e2 -> do
         bind name e1
         return e2
