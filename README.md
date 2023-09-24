@@ -1,5 +1,5 @@
 # funk
-Interpreter for a subset of the Haskell language. Note that this project is in an early experimental phase
+Interpreter for a subset of the Haskell language. Note that this project is in an early experimental phase. It is based on the type inference code of https://github.com/sdiehl/write-you-a-haskell 
 
 ## Function definition and application
 Functions can be defined by lambda abstraction over the arguments.
