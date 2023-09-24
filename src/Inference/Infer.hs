@@ -10,6 +10,7 @@ import qualified Data.Set as Set
 import Data.Functor.Identity (Identity (runIdentity))
 import Data.List (nub)
 import Data.Bifunctor (Bifunctor(second))
+import Debug.Trace (traceM)
 
 type TypeEnv = Map.Map String CoreScheme
 
@@ -134,14 +135,16 @@ infer expr = case expr of
         forM_ cases $ \(pat, res) -> do
             (t2, bindings) <- patternType pat
             uni t1 t2
+            traceM "BINDINGS:"
+            traceM . show $ bindings
             t3 <- inEnvMany bindings $ infer res
             uni tv t3
         return tv
 
 
 deDataCons :: CoreType -> (CoreType, [CoreType])
-deDataCons t = second reverse $ case t of
-    TArr a b -> second (b :) $ deDataCons a
+deDataCons t = case t of
+    TArr a b -> second (a :) $ deDataCons b
     TCons n v -> (TCons n v, [])
 
 patternType :: CorePattern -> InferM (CoreType, [(String, CoreScheme)])

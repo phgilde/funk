@@ -79,7 +79,7 @@ runLine = do
             put (insert name corified venv, insert name sch tenv)
             runLine
         Expr _ -> do
-            lift $ putStrLn $ evalExpr corified venv
+            lift . putStrLn . snd $ evalExpr corified venv
             runLine
 
 takeUE :: Eq a => [a] -> [a]
@@ -88,12 +88,12 @@ takeUE (a : b : r)
     | a == b = [a]
 takeUE a = a
 
-evalExpr :: CoreExpr -> VarEnv -> String
+evalExpr :: CoreExpr -> VarEnv -> (String, String)
 evalExpr expr env =
     let states = iterate (>>= reduce) (return expr)
 
         states' = takeUE . fmap (`runState` env) $ states
-     in (intercalate "\n\n" . fmap show $ states')
+     in (intercalate "\n\n\n\n" . fmap (\(a,b) -> show a ++ "\n\n"++show b) $ states', show . fst . last $ states')
 
 terminalType :: CoreType -> CoreType
 terminalType (TArr _ b) = terminalType b
