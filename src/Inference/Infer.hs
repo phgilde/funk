@@ -135,8 +135,6 @@ infer expr = case expr of
         forM_ cases $ \(pat, res) -> do
             (t2, bindings) <- patternType pat
             uni t1 t2
-            traceM "BINDINGS:"
-            traceM . show $ bindings
             t3 <- inEnvMany bindings $ infer res
             uni tv t3
         return tv
