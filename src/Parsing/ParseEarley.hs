@@ -111,15 +111,20 @@ line opsmap = mdo
     statement <- rule $ expr <|> def <|> typeDef
     expr <- rule $ Expr <$> head exps
     typeDef <- rule $ TypeDef <$> (namedToken LexType *> pTypeName) <*> many pVarName <* namedToken LexWhere <* namedToken LexCurlyL <*> many consDef <* namedToken LexCurlyR
-    consDef <- rule $ (,) <$> pTypeName <* namedToken LexHasType <*> scheme <* namedToken LexSemicolon
-    typeRule <-
+    consDef <- rule $ (,) <$> pTypeName <* namedToken LexHasType <*> arrowTypeRule <* namedToken LexSemicolon
+    arrowTypeRule <-
         rule $
-            TArr <$> typeRule <* namedToken LexArrow <*> typeRule
-                <|> TCons <$> pTypeName <*> many typeRule
-                <|> TVar <$> pVarName
-                <|> namedToken LexParensL *> typeRule <* namedToken LexParensR
+            TArr <$> applyTypeRule <* namedToken LexArrow <*> arrowTypeRule
+            <|> applyTypeRule
+    applyTypeRule <-
+        rule $
+            TCons <$> pTypeName <*> many parensTypeRule
+            <|> parensTypeRule
+    parensTypeRule <-
+        rule $
+            TVar <$> pVarName
+            <|> namedToken LexParensL *> arrowTypeRule <* namedToken LexParensR
     -- pTypeName muss auch eine expr sein dürfen
-    scheme <- rule $ Forall <$> (namedToken LexForall *> many pVarName) <* namedToken LexPeriod <*> typeRule
     def <- rule $ Def <$> pVarName <*> (namedToken LexEquals *> head exps)
     return statement
 

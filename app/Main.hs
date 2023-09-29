@@ -16,6 +16,7 @@ import Parsing.FrontExpr
 import Parsing.Lex
 import Parsing.ParseEarley
 import System.IO (hFlush, stdout)
+import Control.Arrow
 
 main :: IO ()
 main = do
@@ -50,8 +51,8 @@ runLine = do
     lift $ print parsed'
     lift $ putStrLn "desugared:"
     case parsed' of
-        TypeDef _ _ constructors -> do 
-            put (venv, foldr (\(name, ctype) t -> insert name ctype t) tenv constructors)
+        TypeDef _ vars constructors -> do 
+            put (venv, foldr (\(name, ctype) t -> insert name ctype t) tenv (map (second $ Forall vars) constructors))
             runLine
         _ -> return ()
 
