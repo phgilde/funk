@@ -3,7 +3,7 @@ module Evalutation.Eval (reduce, VarEnv, reduceNormal) where
 import Control.Arrow (Arrow (second))
 import Control.Monad (forM_)
 import Control.Monad.Trans.State
-import CoreLanguage.CoreTypes (CoreExpr (..), CorePattern (..))
+import CoreLanguage.CoreTypes (CoreExpr (..), CorePattern (..), getVars)
 import Data.Map (insert)
 import Data.Map as Map
 import Data.Maybe
@@ -63,10 +63,25 @@ replace name val expr = case expr of
     CeBool a -> CeBool a
     CeCons a -> CeCons a
 
+replaceMany :: Map String CoreExpr -> CoreExpr -> CoreExpr
+replaceMany map expr = case expr of
+    CeVar n | n `member` map -> map ! n
+    CeVar n -> CeVar n
+    CeAbs n e -> CeAbs n (replaceMany (n `delete` map) e)
+    CeApp e1 e2 -> CeApp (replaceMany map e1) (replaceMany map e2)
+    CeCases e1 cases -> CeCases (replaceMany map e1) (fmap (\(pat,val)-> (pat, replaceMany (Prelude.foldl (flip delete) map $ getVars pat) val)) cases)
+    CeLet n e1 e2 -> CeLet n (replaceMany (n `delete` map) e1) (replaceMany (n `delete` map) e2)
+    CeInt a -> CeInt a
+    CeBool a -> CeBool a
+    CeCons a -> CeCons a
+
 reduce :: CoreExpr -> State VarEnv CoreExpr
 reduce expr = case expr of
-    CeApp (CeAbs name e1) e2 -> return $ replace name e2 e1
+    CeApp (CeAbs name e1) e2 -> do
+        --traceM $ "Replacing " ++ name ++ " with \n" ++ show e1 ++ " \n in \n" ++ show e2
+        return $ replace name e2 e1
     CeLet name e1 e2 -> do
+        --traceM $ "Binding \n" ++ show e1 ++ "\nto name " ++ name
         bind name e1
         return e2
     CeVar name -> getName name
@@ -91,25 +106,22 @@ reduce expr = case expr of
                     let match = head [(pat, res) | (pat, res) <- cases, case pat of CPaCons pname _ -> pname == consName; CPaVar _ -> True; _ -> False]
                     case match of
                         (CPaCons _ names, res) -> do
-                            forM_ (zip names args) $ \(name, arg) -> name `bind` arg
-                            return res
+                            let map = fromList $ zip names args
+                            return $ replaceMany map res
                         (CPaVar name, res) -> do
-                            bind name e
-                            return res
+                            return $ replace name e res
                 (CeBool b, _) -> do
                     let match = head [(pat, res) | (pat, res) <- cases, case pat of CPaLitBool b' -> b == b'; CPaVar _ -> True; _ -> False]
                     case match of
                         (CPaLitBool _, res) -> return res
                         (CPaVar name, res) -> do
-                            bind name e
-                            return res
+                            return $ replace name e res
                 (CeInt n, _) -> do
                     let match = head [(pat, res) | (pat, res) <- cases, case pat of CPaLitInt n' -> n == n'; CPaVar _ -> True; _ -> False]
                     case match of
                         (CPaLitInt _, res) -> return res
                         (CPaVar name, res) -> do
-                            bind name e
-                            return res
+                            return $ replace name e res
             a -> return a
 
 reduceNormal :: CoreExpr -> State VarEnv CoreExpr
