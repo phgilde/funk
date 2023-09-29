@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
+import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.RWS
@@ -16,7 +17,6 @@ import Parsing.FrontExpr
 import Parsing.Lex
 import Parsing.ParseEarley
 import System.IO (hFlush, stdout)
-import Control.Arrow
 
 main :: IO ()
 main = do
@@ -51,7 +51,7 @@ runLine = do
     lift $ print parsed'
     lift $ putStrLn "desugared:"
     case parsed' of
-        TypeDef _ vars constructors -> do 
+        TypeDef _ vars constructors -> do
             put (venv, foldr (\(name, ctype) t -> insert name ctype t) tenv (map (second $ Forall vars) constructors))
             runLine
         _ -> return ()
@@ -80,21 +80,36 @@ runLine = do
             put (insert name corified venv, insert name sch tenv)
             runLine
         Expr _ -> do
-            lift . putStrLn . snd $ evalExpr corified venv
+            let (debug, result) = evalExpr corified venv
+            lift . putStrLn $ debug
+            lift . putStrLn $ result
             runLine
 
-takeUE :: Eq a => [a] -> [a]
-takeUE (a : b : r)
-    | a /= b = a : takeUE (b : r)
+takeUntilEqual :: Eq a => Int -> [a] -> [a]
+takeUntilEqual fuel (a : b : r)
+    | fuel < 0 = [a]
+    | a /= b = a : takeUntilEqual (fuel - 1) (b : r)
     | a == b = [a]
-takeUE a = a
+takeUntilEqual _ a = a
 
 evalExpr :: CoreExpr -> VarEnv -> (String, String)
 evalExpr expr env =
     let states = iterate (>>= reduce) (return expr)
 
-        states' = takeUE . fmap (`runState` env) $ states
-     in (intercalate "\n\n\n\n" . fmap (\(a,b) -> show a ++ "\n\n"++show b) $ states', show . fst . last $ states')
+        states' = takeUntilEqual 100000 . fmap (`runState` env) $ states
+     in ( intercalate "\n\n\n\n" $
+            zipWith
+                ( \(a, b) n ->
+                    show n
+                        ++ ": VAL\n"
+                        ++ show a
+                         ++ "\nENV:\n"
+                         ++ show b
+                )
+                states'
+                [0 ..]
+        , show . fst . last $ states'
+        )
 
 terminalType :: CoreType -> CoreType
 terminalType (TArr _ b) = terminalType b

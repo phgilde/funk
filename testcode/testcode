@@ -1,0 +1,5 @@
+
+type List a where {Nil :: List a; Cons :: a -> List a -> List a;}
+map = \f -> \list -> case list of {Nil -> Nil; Cons a as -> Cons (f a) (map f as);}
+nats = Cons 0 (map (\x -> x+1) nats)
+take = \n -> \list -> case list of {Nil -> Nil; Cons b bs -> case n of {0 -> Nil; any -> Cons b (take (n-1) bs);};}
