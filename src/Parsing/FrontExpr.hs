@@ -17,7 +17,7 @@ data FeExpr where
     deriving (Show)
 
 data Statement = Def String FeExpr | Expr FeExpr | TypeDef String [String] [DataCons] deriving (Show)
-type DataCons = (String, CoreScheme)
+type DataCons = (String, CoreType)
 data FePattern where
     FPaCons :: String -> [FePattern] -> FePattern
     FPaVar :: String -> FePattern

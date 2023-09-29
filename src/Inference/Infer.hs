@@ -10,7 +10,7 @@ import qualified Data.Set as Set
 import Data.Functor.Identity (Identity (runIdentity))
 import Data.List (nub)
 import Data.Bifunctor (Bifunctor(second))
-import Debug.Trace (traceM)
+import Debug.Trace (traceM, traceShow)
 
 type TypeEnv = Map.Map String CoreScheme
 
@@ -141,9 +141,9 @@ infer expr = case expr of
 
 
 deDataCons :: CoreType -> (CoreType, [CoreType])
-deDataCons t = case t of
+deDataCons t = traceShow t $ case t of
     TArr a b -> second (a :) $ deDataCons b
-    TCons n v -> (TCons n v, [])
+    a -> (a, [])
 
 patternType :: CorePattern -> InferM (CoreType, [(String, CoreScheme)])
 patternType pat = case pat of
